@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mood-based Spotify Recommender</title>
+<style>
+/* Original CSS kept unchanged */
+body { margin:0; font-family:'Poppins',sans-serif; height:100vh; background:linear-gradient(-45deg,#1e3c72,#2a5298,#6a11cb,#2575fc); background-size:400% 400%; animation:gradientBG 15s ease infinite; display:flex; justify-content:center; align-items:center; color:white; }
+@keyframes gradientBG { 0%{background-position:0% 50%} 50%{background-position:100% 50%} 100%{background-position:0% 50%} }
+.container { background: rgba(255,255,255,0.1); backdrop-filter: blur(12px); border-radius: 20px; padding:40px; width:90%; max-width:750px; text-align:center; box-shadow:0 0 25px rgba(0,0,0,0.4); }
+h1 { font-size:2.5em; margin-bottom:20px; background:linear-gradient(90deg,#ffdd00,#ff0077); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+input[type="file"] { padding:10px; border-radius:10px; border:2px dashed #fff; background: rgba(255,255,255,0.1); cursor:pointer; margin-bottom:15px; }
+input[type="file"]:hover { background: rgba(255,255,255,0.2); }
+button { padding:12px 25px; margin:10px; font-size:16px; font-weight:bold; border-radius:30px; border:none; cursor:pointer; background:linear-gradient(90deg,#ff512f,#dd2476); color:#fff; transition:0.3s; }
+button:hover { transform:scale(1.05); }
+#loading { margin:15px 0; font-size:18px; color:#ffeb3b; }
+#quote { font-size:1.3em; font-style:italic; margin:20px 0; }
+.music-player { margin:20px 0; }
+iframe { border-radius:12px; margin-top:10px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>🎵 Mood-based Quote & Music 🎵</h1>
+  <input type="file" id="imageInput" accept="image/*"><br>
+  <button id="detectBtn">Detect Mood</button>
+  <div id="loading"></div>
+  <h2 id="mood"></h2>
+  <p id="quote"></p>
+
+  <!-- English Music -->
+  <div class="music-player">
+    <h3>English Music</h3>
+    <div id="englishPlayer"></div>
+    <button id="prevEnglish" style="display:none;">Previous</button>
+    <button id="nextEnglish" style="display:none;">Next</button>
+  </div>
+
+  <!-- Bangla Music -->
+  <div class="music-player">
+    <h3>Bangla Music</h3>
+    <div id="banglaPlayer"></div>
+    <button id="prevBangla" style="display:none;">Previous</button>
+    <button id="nextBangla" style="display:none;">Next</button>
+  </div>
+</div>
+
+<script>
+const detectBtn = document.getElementById("detectBtn");
+const loading = document.getElementById("loading");
+const moodEl = document.getElementById("mood");
+const quoteEl = document.getElementById("quote");
+
+const englishPlayer = document.getElementById("englishPlayer");
+const banglaPlayer = document.getElementById("banglaPlayer");
+
+const prevEnglishBtn = document.getElementById("prevEnglish");
+const nextEnglishBtn = document.getElementById("nextEnglish");
+const prevBanglaBtn = document.getElementById("prevBangla");
+const nextBanglaBtn = document.getElementById("nextBangla");
+
+let englishSongs = [], englishIndex = 0;
+let banglaSongs = [], banglaIndex = 0;
+
+// ⚡ Replace with your ngrok URL
+const API_URL = "https://cd4d34aa4c5f.ngrok-free.app/detect_mood";
+
+function showCountdown(seconds){
+  loading.style.display="block";
+  let counter = seconds;
+  loading.innerText = `Please wait... ${counter}`;
+  return new Promise(resolve=>{
+    const interval = setInterval(()=>{
+      counter--;
+      loading.innerText = `Please wait... ${counter}`;
+      if(counter<=0){ clearInterval(interval); loading.style.display="none"; resolve(); }
+    },1000);
+  });
+}
+
+async function detectMood(){
+  const fileInput = document.getElementById("imageInput");
+  if(!fileInput.files[0]){ alert("Please upload an image!"); return; }
+
+  detectBtn.disabled=true;
+  await showCountdown(5);
+
+  const formData = new FormData();
+  formData.append("image", fileInput.files[0]);
+
+  try{
+    const res = await fetch(API_URL,{method:"POST", body:formData});
+    const data = await res.json();
+
+    if(data.error){ alert("Error: "+data.error); detectBtn.disabled=false; return; }
+
+    moodEl.innerText = "Detected Mood: " + data.mood;
+    quoteEl.innerText = '"' + data.quote + '"';
+
+    // English Songs
+    englishSongs = data.english;
+    englishIndex = 0;
+    if(englishSongs.length>0){
+      playEnglish(englishSongs[englishIndex]);
+      nextEnglishBtn.style.display="inline-block";
+      prevEnglishBtn.style.display="none"; // hidden initially
+    }
+
+    // Bangla Songs
+    banglaSongs = data.bangla;
+    banglaIndex = 0;
+    if(banglaSongs.length>0){
+      playBangla(banglaSongs[banglaIndex]);
+      nextBanglaBtn.style.display="inline-block";
+      prevBanglaBtn.style.display="none"; // hidden initially
+    }
+
+  }catch(e){ alert("Error: "+e.message); }
+
+  detectBtn.disabled=false;
+}
+
+function playEnglish(link){
+  englishPlayer.innerHTML = `<iframe src="${link}" width="100%" height="80" frameborder="0" allowtransparency="true" allow="encrypted-media"></iframe>`;
+}
+function playBangla(link){
+  banglaPlayer.innerHTML = `<iframe src="${link}" width="100%" height="80" frameborder="0" allowtransparency="true" allow="encrypted-media"></iframe>`;
+}
+
+// English Next/Previous
+nextEnglishBtn.addEventListener("click", ()=>{
+  englishIndex = (englishIndex+1) % englishSongs.length;
+  playEnglish(englishSongs[englishIndex]);
+  prevEnglishBtn.style.display="inline-block";
+});
+prevEnglishBtn.addEventListener("click", ()=>{
+  englishIndex = (englishIndex-1 + englishSongs.length) % englishSongs.length;
+  playEnglish(englishSongs[englishIndex]);
+});
+
+// Bangla Next/Previous
+nextBanglaBtn.addEventListener("click", ()=>{
+  banglaIndex = (banglaIndex+1) % banglaSongs.length;
+  playBangla(banglaSongs[banglaIndex]);
+  prevBanglaBtn.style.display="inline-block";
+});
+prevBanglaBtn.addEventListener("click", ()=>{
+  banglaIndex = (banglaIndex-1 + banglaSongs.length) % banglaSongs.length;
+  playBangla(banglaSongs[banglaIndex]);
+});
+
+detectBtn.addEventListener("click", detectMood);
+</script>
+</body>
+</html>
